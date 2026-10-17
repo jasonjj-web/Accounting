@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>極簡暗黑記帳 (Minimal Dark Accounting)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#121212',
+                        cardBg: '#1E1E1E',
+                        cardBorder: '#333333',
+                        cardHover: '#2C2C2C',
+                        neonGreen: '#00E676',
+                        coralRed: '#FF5252',
+                        cyanBlue: '#00E5FF',
+                        textPrimary: '#FFFFFF',
+                        textSecondary: '#A0A0A0'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #121212;
+            color: #FFFFFF;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #121212;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #333333;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555555;
+        }
+        /* Hide scrollbar for tab navigation on small screens */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .type-btn-active-expense {
+            background-color: #FF5252 !important;
+            color: #121212 !important;
+            font-weight: bold;
+        }
+        .type-btn-active-income {
+            background-color: #00E676 !important;
+            color: #121212 !important;
+            font-weight: bold;
+        }
+        .type-btn-active-transfer {
+            background-color: #00E5FF !important;
+            color: #121212 !important;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="pb-24 max-w-md mx-auto min-h-screen relative border-x border-gray-800 shadow-2xl">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-4">
+        <div id="toast-content" class="bg-cardHover border border-cardBorder text-white px-4 py-2.5 rounded-full shadow-lg text-sm font-medium flex items-center gap-2">
+            <i id="toast-icon" class="fas fa-check-circle text-neonGreen"></i>
+            <span id="toast-msg">操作成功</span>
+        </div>
+    </div>
+
+    <!-- MAIN APP HEADER -->
+    <header class="p-4 border-b border-cardBorder sticky top-0 bg-darkBg/90 backdrop-blur-md z-40">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-neonGreen/10 flex items-center justify-center text-neonGreen font-black text-lg">
+                    $
+                </div>
+                <h1 class="text-lg font-bold tracking-wide">極簡暗黑記帳</h1>
+            </div>
+            <div class="text-xs text-textSecondary bg-cardBg px-2.5 py-1 rounded-full border border-cardBorder">
+                <i class="fas fa-wallet mr-1 text-neonGreen"></i>資產總覽
+            </div>
+        </div>
+    </header>
+
+    <!-- CONTENT VIEWS CONTAINER -->
+    <main class="p-4 space-y-6">
+
+        <!-- TAB 1: QUICK EXPENSE & DASHBOARD -->
+        <div id="tab-overview" class="space-y-6">
+
+            <!-- Top Asset Header Card -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-neonGreen/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                <div class="text-xs text-textSecondary font-medium tracking-wider uppercase mb-1">淨資產 (Total Net Worth)</div>
+                <div class="flex items-baseline justify-between mb-4">
+                    <div id="total-net-worth" class="text-3xl font-extrabold text-neonGreen tracking-tight">
+                        $0
+                    </div>
+                    <button id="toggle-accounts-btn" class="text-xs text-cyanBlue flex items-center gap-1 hover:underline focus:outline-none">
+                        <span>展開帳戶明細</span>
+                        <i id="toggle-accounts-icon" class="fas fa-chevron-down text-xs transition-transform duration-200"></i>
+                    </button>
+                </div>
+
+                <!-- Collapsible Accounts List -->
+                <div id="accounts-list-container" class="hidden space-y-2.5 pt-3 border-t border-cardBorder/60 transition-all">
+                    <div id="accounts-grid" class="grid grid-cols-2 gap-2">
+                        <!-- Account Cards standard generated dynamically -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Speed Record Form -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg">
+                <h2 class="text-sm font-semibold text-textSecondary mb-4 flex items-center gap-2">
+                    <i class="fas fa-bolt text-yellow-400"></i> 快速記帳
+                </h2>
+
+                <form id="transaction-form" class="space-y-4">
+                    <!-- Type Switcher Segment -->
+                    <div class="grid grid-cols-3 gap-1.5 p-1 bg-darkBg rounded-xl border border-cardBorder">
+                        <button type="button" id="btn-type-expense" onclick="setTransactionType('Expense')" class="py-2 text-xs font-semibold rounded-lg transition-all type-btn-active-expense">支出</button>
+                        <button type="button" id="btn-type-income" onclick="setTransactionType('Income')" class="py-2 text-xs font-semibold rounded-lg transition-all text-textSecondary hover:text-white">收入</button>
+                        <button type="button" id="btn-type-transfer" onclick="setTransactionType('Transfer')" class="py-2 text-xs font-semibold rounded-lg transition-all text-textSecondary hover:text-white">轉帳</button>
+                    </div>
+
+                    <!-- Amount Input -->
+                    <div class="relative">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-textSecondary" id="amount-currency-symbol">$</span>
+                        <input type="number" step="any" id="tx-amount" required placeholder="0" class="w-full bg-darkBg border border-cardBorder rounded-xl py-3 pl-10 pr-4 text-2xl font-bold text-white focus:outline-none focus:border-neonGreen transition-colors">
+                    </div>
+
+                    <!-- Item Title & Merchant -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-textSecondary mb-1">項目備註 / 名稱</label>
+                            <input type="text" id="tx-title" placeholder="例如: 麥當勞午餐" required class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-textSecondary mb-1">商家 / 對象</label>
+                            <input type="text" id="tx-merchant" placeholder="例如: 麥當勞" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                        </div>
+                    </div>
+
+                    <!-- Category and Subcategory (Dynamic based on Type) -->
+                    <div id="category-section" class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-textSecondary mb-1">主分類</label>
+                            <select id="tx-main-category" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                                <!-- Options populated JS -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-textSecondary mb-1">子分類</label>
+                            <select id="tx-sub-category" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                                <!-- Options populated JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Account Selectors (Normal vs Transfer) -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div id="from-account-box" class="col-span-2">
+                            <label id="from-account-label" class="block text-xs text-textSecondary mb-1">支付帳戶</label>
+                            <select id="tx-account" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                                <!-- Options populated JS -->
+                            </select>
+                        </div>
+                        <div id="target-account-box" class="hidden">
+                            <label class="block text-xs text-textSecondary mb-1">存入 / 轉入帳戶</label>
+                            <select id="tx-target-account" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-cyanBlue">
+                                <!-- Options populated JS -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Date & Submit Button -->
+                    <div class="grid grid-cols-3 gap-3 items-end pt-2">
+                        <div class="col-span-1">
+                            <label class="block text-xs text-textSecondary mb-1">日期</label>
+                            <input type="date" id="tx-date" required class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-neonGreen">
+                        </div>
+                        <div class="col-span-2">
+                            <button type="submit" id="btn-submit-tx" class="w-full bg-coralRed text-darkBg font-bold py-3 rounded-xl hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2">
+                                <i class="fas fa-plus-circle"></i> 新增支出
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Recent Transactions List -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-sm font-semibold text-textSecondary flex items-center gap-2">
+                        <i class="fas fa-history text-cyanBlue"></i> 近期交易明細
+                    </h2>
+                    <div class="relative w-1/2">
+                        <input type="text" id="search-tx" placeholder="搜尋備註/商家..." class="w-full bg-darkBg border border-cardBorder rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyanBlue pl-7">
+                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-textSecondary"></i>
+                    </div>
+                </div>
+
+                <div id="recent-transactions-list" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    <!-- Transactions dynamically appended -->
+                </div>
+            </section>
+        </div>
+
+        <!-- TAB 2: ANALYTICS & ACCOUNT SETTINGS -->
+        <div id="tab-analytics" class="space-y-6 hidden">
+            
+            <!-- Monthly Chart & Analytics Card -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-sm font-semibold text-textSecondary flex items-center gap-2">
+                        <i class="fas fa-chart-pie text-neonGreen"></i> 月度分析
+                    </h2>
+                    <!-- Month Selector -->
+                    <div class="flex items-center gap-2 bg-darkBg border border-cardBorder rounded-lg px-2 py-1">
+                        <button id="prev-month-btn" class="text-xs text-textSecondary hover:text-white px-1"><i class="fas fa-chevron-left"></i></button>
+                        <input type="month" id="analytics-month" class="bg-transparent text-xs font-semibold text-white focus:outline-none cursor-pointer">
+                        <button id="next-month-btn" class="text-xs text-textSecondary hover:text-white px-1"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
+                <!-- Monthly Totals Summary -->
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <div class="bg-darkBg/60 border border-cardBorder p-3 rounded-xl">
+                        <div class="text-[11px] text-textSecondary">本月總支出</div>
+                        <div id="monthly-total-expense" class="text-lg font-bold text-coralRed mt-0.5">$0</div>
+                    </div>
+                    <div class="bg-darkBg/60 border border-cardBorder p-3 rounded-xl">
+                        <div class="text-[11px] text-textSecondary">本月總收入</div>
+                        <div id="monthly-total-income" class="text-lg font-bold text-neonGreen mt-0.5">$0</div>
+                    </div>
+                </div>
+
+                <!-- Donut Chart Canvas Container -->
+                <div class="relative w-full h-52 flex justify-center items-center py-2">
+                    <canvas id="expenseChart" class="max-h-full"></canvas>
+                    <div id="chart-empty-msg" class="hidden text-xs text-textSecondary italic">該月份尚無支出資料</div>
+                </div>
+
+                <!-- Category Breakdown List -->
+                <div class="space-y-2 pt-2 border-t border-cardBorder/60" id="category-breakdown-list">
+                    <!-- Category stats appended here -->
+                </div>
+            </section>
+
+            <!-- Accounts & Balances Management Card -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg space-y-4">
+                <h2 class="text-sm font-semibold text-textSecondary flex items-center gap-2">
+                    <i class="fas fa-wallet text-cyanBlue"></i> 帳戶管理與初始金額
+                </h2>
+
+                <div id="manage-accounts-list" class="space-y-2.5">
+                    <!-- Dynamic Account inputs -->
+                </div>
+            </section>
+
+            <!-- Subcategory Customization -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg space-y-4">
+                <h2 class="text-sm font-semibold text-textSecondary flex items-center gap-2">
+                    <i class="fas fa-tags text-yellow-400"></i> 自訂子分類
+                </h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs text-textSecondary mb-1">選擇主分類</label>
+                        <select id="submgt-main-cat" class="w-full bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none">
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-textSecondary mb-1">新增子分類</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="submgt-new-sub" placeholder="例如: 早午餐" class="flex-1 bg-darkBg border border-cardBorder rounded-xl p-2.5 text-sm text-white focus:outline-none focus:border-neonGreen">
+                            <button id="btn-add-subcategory" class="bg-neonGreen text-darkBg px-4 font-bold rounded-xl text-sm hover:opacity-90">新增</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-textSecondary mb-1">目前子分類</label>
+                        <div id="submgt-tags-container" class="flex flex-wrap gap-2 p-2 bg-darkBg rounded-xl border border-cardBorder min-h-[50px]">
+                            <!-- Subcategory badges -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Backup & Restore Section -->
+            <section class="bg-cardBg border border-cardBorder rounded-2xl p-5 shadow-lg space-y-4">
+                <h2 class="text-sm font-semibold text-textSecondary flex items-center gap-2">
+                    <i class="fas fa-database text-purple-400"></i> 資料備份與復原 (JSON)
+                </h2>
+                <p class="text-xs text-textSecondary leading-relaxed">
+                    您可以匯出所有記帳紀錄與帳戶設定至 JSON 檔案，或從匯出的 JSON 檔復原資料。
+                </p>
+                
+                <div class="grid grid-cols-2 gap-3 pt-1">
+                    <button id="btn-export-json" class="bg-darkBg border border-cardBorder hover:border-cyanBlue text-cyanBlue font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors">
+                        <i class="fas fa-download"></i> 匯出 JSON 備份
+                    </button>
+                    <button id="btn-trigger-import" class="bg-darkBg border border-cardBorder hover:border-neonGreen text-neonGreen font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors">
+                        <i class="fas fa-upload"></i> 匯入 JSON 備份
+                    </button>
+                    <input type="file" id="import-json-file" accept=".json" class="hidden">
+                </div>
+
+                <div class="pt-3 border-t border-cardBorder/60">
+                    <button id="btn-clear-all" class="w-full bg-coralRed/10 border border-coralRed/30 hover:bg-coralRed/20 text-coralRed font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition-colors">
+                        <i class="fas fa-trash-alt"></i> 清除所有資料 (重置)
+                    </button>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <!-- FIXED BOTTOM NAVIGATION BAR -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-darkBg/95 backdrop-blur-md border-t border-cardBorder z-50">
+        <div class="grid grid-cols-2 h-16">
+            <button id="nav-btn-overview" onclick="switchTab('overview')" class="flex flex-col items-center justify-center gap-1 text-neonGreen">
+                <i class="fas fa-list-ul text-lg"></i>
+                <span class="text-[11px] font-medium">記帳總覽</span>
+            </button>
+            <button id="nav-btn-analytics" onclick="switchTab('analytics')" class="flex flex-col items-center justify-center gap-1 text-textSecondary hover:text-white">
+                <i class="fas fa-chart-line text-lg"></i>
+                <span class="text-[11px] font-medium">圖表與設定</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- CONSTANTS & DEFAULT DATA STRUCTURES ---
+        const STORAGE_KEY = 'minimal_dark_finance_data';
+
+        const DEFAULT_ACCOUNTS = [
+            { id: 'cash', name: '現金', balance: 3500, icon: 'fa-money-bill-wave', color: '#00E676' },
+            { id: 'bank_a', name: '銀行 A', balance: 45000, icon: 'fa-university', color: '#00E5FF' },
+            { id: 'bank_b', name: '銀行 B', balance: 120000, icon: 'fa-building-columns', color: '#7C4DFF' },
+            { id: 'credit_card', name: '信用卡', balance: -8200, icon: 'fa-credit-card', color: '#FF5252' },
+            { id: 'easycard', name: '悠遊卡', balance: 450, icon: 'fa-address-card', color: '#FFAB00' },
+            { id: 'investment', name: '投資帳戶', balance: 88000, icon: 'fa-chart-pie', color: '#E040FB' }
+        ];
+
+        const DEFAULT_CATEGORIES = {
+            Expense: {
+                '餐飲飲食': ['早餐', '午餐', '晚餐', '飲料/咖啡', '聚餐/零食'],
+                '日常交通': ['捷運/公車', '計程車', '加油/停車', '高鐵/台鐵'],
+                '生活居家': ['日常用品', '水電瓦斯', '房租/房貸', '電信網路'],
+                '休閒娛樂': ['電影/展覽', '遊戲/訂閱', '旅遊/住宿', '運動'],
+                '購物消費': ['服飾鞋包', '3C電子', '美妝保養', '禮物'],
+                '醫療健康': ['看診藥品', '保健食品', '醫療保險']
+            },
+            Income: {
+                '薪資所得': ['正職薪水', '兼職/副業', '年終/獎金'],
+                '投資收益': ['股票股利', '基金配息', '利息'],
+                '其他收入': ['中獎/紅包', '二手拍賣', '退款']
+            }
+        };
+
+        // --- APP STATE ---
+        let appData = {
+            accounts: [],
+            categories: {},
+            transactions: []
+        };
+
+        let currentType = 'Expense'; // Expense, Income, Transfer
+        let chartInstance = null;
+
+        // --- INITIALIZATION ---
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAppData();
+            setDefaultDate();
+            initMonthPicker();
+            renderAll();
+            setupEventListeners();
+        });
+
+        // Load data from LocalStorage or initialize default
+        function loadAppData() {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (raw) {
+                try {
+                    appData = JSON.parse(raw);
+                } catch (e) {
+                    console.error("Failed to parse LocalStorage data", e);
+                    initDefaultData();
+                }
+            } else {
+                initDefaultData();
+            }
+        }
+
+        function initDefaultData() {
+            appData = {
+                accounts: JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS)),
+                categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                transactions: [
+                    {
+                        id: 'tx_' + Date.now() + '_1',
+                        date: getTodayString(),
+                        amount: 120,
+                        type: 'Expense',
+                        account: 'cash',
+                        targetAccount: null,
+                        mainCategory: '餐飲飲食',
+                        subCategory: '午餐',
+                        merchant: '麥當勞',
+                        title: '麥當勞 05號套餐'
+                    },
+                    {
+                        id: 'tx_' + Date.now() + '_2',
+                        date: getTodayString(),
+                        amount: 1000,
+                        type: 'Transfer',
+                        account: 'bank_a',
+                        targetAccount: 'easycard',
+                        mainCategory: '轉帳',
+                        subCategory: '資金調撥',
+                        merchant: '自動加值',
+                        title: '悠遊卡自動加值'
+                    }
+                ]
+            };
+            saveAppData();
+        }
+
+        function saveAppData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+        }
+
+        // --- UI HELPERS & RENDERERS ---
+        function getTodayString() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function setDefaultDate() {
+            document.getElementById('tx-date').value = getTodayString();
+        }
+
+        function initMonthPicker() {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            document.getElementById('analytics-month').value = `${year}-${month}`;
+        }
+
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.textContent = msg;
+            if (isError) {
+                toastIcon.className = "fas fa-exclamation-circle text-coralRed";
+            } else {
+                toastIcon.className = "fas fa-check-circle text-neonGreen";
+            }
+
+            toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-4', 'pointer-events-none');
+            }, 2500);
+        }
+
+        function formatCurrency(amount) {
+            return '$' + Number(amount).toLocaleString();
+        }
+
+        // --- RENDER ALL VIEWS ---
+        function renderAll() {
+            renderNetWorthAndAccounts();
+            populateCategoryDropdowns();
+            populateAccountDropdowns();
+            renderRecentTransactions();
+            renderAnalytics();
+            renderManageAccounts();
+            renderSubcategoryManagement();
+        }
+
+        // Calculate and display total net worth & individual account balances
+        function renderNetWorthAndAccounts() {
+            let totalNetWorth = 0;
+            const grid = document.getElementById('accounts-grid');
+            grid.innerHTML = '';
+
+            appData.accounts.forEach(acc => {
+                totalNetWorth += Number(acc.balance);
+
+                const card = document.createElement('div');
+                card.className = "bg-darkBg/80 border border-cardBorder/80 rounded-xl p-2.5 flex items-center justify-between";
+                
+                const isNegative = acc.balance < 0;
+                const balanceClass = isNegative ? 'text-coralRed' : 'text-white';
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <div class="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-xs" style="background-color: ${acc.color}20; color: ${acc.color};">
+                            <i class="fas ${acc.icon}"></i>
+                        </div>
+                        <span class="text-xs font-medium truncate">${acc.name}</span>
+                    </div>
+                    <span class="text-xs font-bold ${balanceClass} ml-1">${formatCurrency(acc.balance)}</span>
+                `;
+                grid.appendChild(card);
+            });
+
+            const netWorthEl = document.getElementById('total-net-worth');
+            netWorthEl.textContent = formatCurrency(totalNetWorth);
+            if (totalNetWorth < 0) {
+                netWorthEl.classList.remove('text-neonGreen');
+                netWorthEl.classList.add('text-coralRed');
+            } else {
+                netWorthEl.classList.remove('text-coralRed');
+                netWorthEl.classList.add('text-neonGreen');
+            }
+        }
+
+        // Populate Category/Subcategory Selectors
+        function populateCategoryDropdowns() {
+            const mainSelect = document.getElementById('tx-main-category');
+            const subSelect = document.getElementById('tx-sub-category');
+            
+            mainSelect.innerHTML = '';
+            subSelect.innerHTML = '';
+
+            if (currentType === 'Transfer') {
+                document.getElementById('category-section').classList.add('hidden');
+                return;
+            } else {
+                document.getElementById('category-section').classList.remove('hidden');
+            }
+
+            const currentCats = appData.categories[currentType] || {};
+            const mainCatNames = Object.keys(currentCats);
+
+            mainCatNames.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                mainSelect.appendChild(opt);
+            });
+
+            if (mainCatNames.length > 0) {
+                updateSubCategoryDropdown(mainCatNames[0]);
+            }
+        }
+
+        function updateSubCategoryDropdown(selectedMainCat) {
+            const subSelect = document.getElementById('tx-sub-category');
+            subSelect.innerHTML = '';
+
+            const subs = (appData.categories[currentType] && appData.categories[currentType][selectedMainCat]) || [];
+            subs.forEach(sub => {
+                const opt = document.createElement('option');
+                opt.value = sub;
+                opt.textContent = sub;
+                subSelect.appendChild(opt);
+            });
+        }
+
+        // Populate Payment and Target Accounts Selectors
+        function populateAccountDropdowns() {
+            const accSelect = document.getElementById('tx-account');
+            const targetSelect = document.getElementById('tx-target-account');
+
+            accSelect.innerHTML = '';
+            targetSelect.innerHTML = '';
+
+            appData.accounts.forEach(acc => {
+                const opt1 = document.createElement('option');
+                opt1.value = acc.id;
+                opt1.textContent = `${acc.name} (${formatCurrency(acc.balance)})`;
+                accSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = acc.id;
+                opt2.textContent = `${acc.name} (${formatCurrency(acc.balance)})`;
+                targetSelect.appendChild(opt2);
+            });
+
+            // Default target account to 2nd if available for Transfer
+            if (appData.accounts.length > 1) {
+                targetSelect.selectedIndex = 1;
+            }
+        }
+
+        // Render Recent Transactions
+        function renderRecentTransactions() {
+            const list = document.getElementById('recent-transactions-list');
+            const searchQuery = document.getElementById('search-tx').value.toLowerCase().trim();
+            list.innerHTML = '';
+
+            let sorted = [...appData.transactions].sort((a, b) => new Date(b.date) - new Date(a.date) || b.id.localeCompare(a.id));
+
+            if (searchQuery) {
+                sorted = sorted.filter(t => 
+                    (t.title && t.title.toLowerCase().includes(searchQuery)) ||
+                    (t.merchant && t.merchant.toLowerCase().includes(searchQuery)) ||
+                    (t.mainCategory && t.mainCategory.toLowerCase().includes(searchQuery))
+                );
+            }
+
+            if (sorted.length === 0) {
+                list.innerHTML = `<div class="text-center py-8 text-xs text-textSecondary italic">尚無明細紀錄</div>`;
+                return;
+            }
+
+            sorted.forEach(tx => {
+                const fromAcc = appData.accounts.find(a => a.id === tx.account);
+                const targetAcc = tx.targetAccount ? appData.accounts.find(a => a.id === tx.targetAccount) : null;
+
+                let typeColor = 'text-coralRed';
+                let typePrefix = '-';
+                let iconClass = 'fa-arrow-down';
+
+                if (tx.type === 'Income') {
+                    typeColor = 'text-neonGreen';
+                    typePrefix = '+';
+                    iconClass = 'fa-arrow-up';
+                } else if (tx.type === 'Transfer') {
+                    typeColor = 'text-cyanBlue';
+                    typePrefix = '⇆ ';
+                    iconClass = 'fa-exchange-alt';
+                }
+
+                const item = document.createElement('div');
+                item.className = "bg-darkBg/90 border border-cardBorder rounded-xl p-3 flex items-center justify-between hover:border-gray-700 transition-colors";
+
+                let accountDetailText = fromAcc ? fromAcc.name : '未知帳戶';
+                if (tx.type === 'Transfer' && targetAcc) {
+                    accountDetailText = `${fromAcc ? fromAcc.name : ''} ➔ ${targetAcc.name}`;
+                }
+
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-xs ${tx.type === 'Expense' ? 'bg-coralRed/10 text-coralRed' : tx.type === 'Income' ? 'bg-neonGreen/10 text-neonGreen' : 'bg-cyanBlue/10 text-cyanBlue'}">
+                            <i class="fas ${iconClass}"></i>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-semibold text-white truncate">${tx.title || '無項目標題'}</span>
+                                ${tx.merchant ? `<span class="text-[10px] bg-cardBorder/60 px-1.5 py-0.2 rounded text-textSecondary truncate">${tx.merchant}</span>` : ''}
+                            </div>
+                            <div class="text-[11px] text-textSecondary flex items-center gap-2 mt-0.5">
+                                <span>${tx.date}</span>
+                                <span>•</span>
+                                <span>${tx.type === 'Transfer' ? '轉帳' : `${tx.mainCategory} (${tx.subCategory || '未分類'})`}</span>
+                                <span>•</span>
+                                <span class="text-textSecondary/80">${accountDetailText}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 ml-2 flex-shrink-0">
+                        <span class="text-sm font-bold ${typeColor}">${typePrefix}${formatCurrency(tx.amount)}</span>
+                        <button onclick="deleteTransaction('${tx.id}')" class="text-textSecondary hover:text-coralRed p-1 text-xs transition-colors" title="刪除明細">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // --- TRANSACTION LOGIC & BALANCES UPDATE ---
+        function setTransactionType(type) {
+            currentType = type;
+            const btnExpense = document.getElementById('btn-type-expense');
+            const btnIncome = document.getElementById('btn-type-income');
+            const btnTransfer = document.getElementById('btn-type-transfer');
+            const submitBtn = document.getElementById('btn-submit-tx');
+
+            btnExpense.className = "py-2 text-xs font-semibold rounded-lg transition-all text-textSecondary hover:text-white";
+            btnIncome.className = "py-2 text-xs font-semibold rounded-lg transition-all text-textSecondary hover:text-white";
+            btnTransfer.className = "py-2 text-xs font-semibold rounded-lg transition-all text-textSecondary hover:text-white";
+
+            const fromLabel = document.getElementById('from-account-label');
+            const fromBox = document.getElementById('from-account-box');
+            const targetBox = document.getElementById('target-account-box');
+
+            if (type === 'Expense') {
+                btnExpense.className = "py-2 text-xs font-semibold rounded-lg transition-all type-btn-active-expense";
+                submitBtn.className = "w-full bg-coralRed text-darkBg font-bold py-3 rounded-xl hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2";
+                submitBtn.innerHTML = `<i class="fas fa-plus-circle"></i> 新增支出`;
+                fromLabel.textContent = "支付帳戶";
+                fromBox.className = "col-span-2";
+                targetBox.className = "hidden";
+            } else if (type === 'Income') {
+                btnIncome.className = "py-2 text-xs font-semibold rounded-lg transition-all type-btn-active-income";
+                submitBtn.className = "w-full bg-neonGreen text-darkBg font-bold py-3 rounded-xl hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2";
+                submitBtn.innerHTML = `<i class="fas fa-plus-circle"></i> 新增收入`;
+                fromLabel.textContent = "存入帳戶";
+                fromBox.className = "col-span-2";
+                targetBox.className = "hidden";
+            } else if (type === 'Transfer') {
+                btnTransfer.className = "py-2 text-xs font-semibold rounded-lg transition-all type-btn-active-transfer";
+                submitBtn.className = "w-full bg-cyanBlue text-darkBg font-bold py-3 rounded-xl hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2";
+                submitBtn.innerHTML = `<i class="fas fa-exchange-alt"></i> 確認轉帳`;
+                fromLabel.textContent = "轉出帳戶";
+                fromBox.className = "col-span-1";
+                targetBox.className = "col-span-1 block";
+            }
+
+            populateCategoryDropdowns();
+        }
+
+        function handleAddTransaction(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('tx-amount').value);
+            const title = document.getElementById('tx-title').value.trim();
+            const merchant = document.getElementById('tx-merchant').value.trim();
+            const accountId = document.getElementById('tx-account').value;
+            const targetAccountId = document.getElementById('tx-target-account').value;
+            const date = document.getElementById('tx-date').value;
+
+            if (isNaN(amount) || amount <= 0) {
+                showToast("請輸入有效的金額！", true);
+                return;
+            }
+
+            if (currentType === 'Transfer' && accountId === targetAccountId) {
+                showToast("轉出帳戶與轉入帳戶不能相同！", true);
+                return;
+            }
+
+            const mainCategory = currentType === 'Transfer' ? '轉帳' : document.getElementById('tx-main-category').value;
+            const subCategory = currentType === 'Transfer' ? '資金調撥' : document.getElementById('tx-sub-category').value;
+
+            // Apply Account Balance updates
+            const fromAcc = appData.accounts.find(a => a.id === accountId);
+            if (!fromAcc) {
+                showToast("找不到對應帳戶", true);
+                return;
+            }
+
+            if (currentType === 'Expense') {
+                fromAcc.balance -= amount;
+            } else if (currentType === 'Income') {
+                fromAcc.balance += amount;
+            } else if (currentType === 'Transfer') {
+                const targetAcc = appData.accounts.find(a => a.id === targetAccountId);
+                if (!targetAcc) {
+                    showToast("找不到轉入帳戶", true);
+                    return;
+                }
+                fromAcc.balance -= amount;
+                targetAcc.balance += amount;
+            }
+
+            const newTx = {
+                id: 'tx_' + Date.now(),
+                date,
+                amount,
+                type: currentType,
+                account: accountId,
+                targetAccount: currentType === 'Transfer' ? targetAccountId : null,
+                mainCategory,
+                subCategory,
+                merchant,
+                title
+            };
+
+            appData.transactions.push(newTx);
+            saveAppData();
+            renderAll();
+
+            // Clear inputs
+            document.getElementById('tx-amount').value = '';
+            document.getElementById('tx-title').value = '';
+            document.getElementById('tx-merchant').value = '';
+
+            showToast("成功新增交易紀錄！");
+        }
+
+        function deleteTransaction(id) {
+            const index = appData.transactions.findIndex(t => t.id === id);
+            if (index === -1) return;
+
+            const tx = appData.transactions[index];
+
+            // Revert balances
+            const fromAcc = appData.accounts.find(a => a.id === tx.account);
+            if (fromAcc) {
+                if (tx.type === 'Expense') {
+                    fromAcc.balance += tx.amount;
+                } else if (tx.type === 'Income') {
+                    fromAcc.balance -= tx.amount;
+                } else if (tx.type === 'Transfer') {
+                    fromAcc.balance += tx.amount;
+                }
+            }
+
+            if (tx.type === 'Transfer' && tx.targetAccount) {
+                const targetAcc = appData.accounts.find(a => a.id === tx.targetAccount);
+                if (targetAcc) {
+                    targetAcc.balance -= tx.amount;
+                }
+            }
+
+            appData.transactions.splice(index, 1);
+            saveAppData();
+            renderAll();
+            showToast("交易已成功刪除並還原餘額！");
+        }
+
+        // --- ANALYTICS & CHARTS LOGIC ---
+        function renderAnalytics() {
+            const selectedMonth = document.getElementById('analytics-month').value; // YYYY-MM
+            if (!selectedMonth) return;
+
+            const monthlyTxs = appData.transactions.filter(t => t.date.startsWith(selectedMonth));
+
+            let totalExpense = 0;
+            let totalIncome = 0;
+            const categoryTotals = {};
+
+            monthlyTxs.forEach(t => {
+                if (t.type === 'Expense') {
+                    totalExpense += t.amount;
+                    categoryTotals[t.mainCategory] = (categoryTotals[t.mainCategory] || 0) + t.amount;
+                } else if (t.type === 'Income') {
+                    totalIncome += t.amount;
+                }
+                // Note: Transfers do not affect Monthly Expense/Income totals
+            });
+
+            document.getElementById('monthly-total-expense').textContent = formatCurrency(totalExpense);
+            document.getElementById('monthly-total-income').textContent = formatCurrency(totalIncome);
+
+            // Category breakdown rendering
+            const breakdownList = document.getElementById('category-breakdown-list');
+            breakdownList.innerHTML = '';
+
+            const categoriesSorted = Object.keys(categoryTotals).sort((a, b) => categoryTotals[b] - categoryTotals[a]);
+
+            const chartCanvas = document.getElementById('expenseChart');
+            const chartEmptyMsg = document.getElementById('chart-empty-msg');
+
+            if (categoriesSorted.length === 0) {
+                chartCanvas.classList.add('hidden');
+                chartEmptyMsg.classList.remove('hidden');
+                breakdownList.innerHTML = `<div class="text-center py-4 text-xs text-textSecondary italic">該月份無任何支出紀錄</div>`;
+                if (chartInstance) {
+                    chartInstance.destroy();
+                    chartInstance = null;
+                }
+                return;
+            }
+
+            chartCanvas.classList.remove('hidden');
+            chartEmptyMsg.classList.add('hidden');
+
+            const chartColors = [
+                '#FF5252', '#00E5FF', '#00E676', '#FFAB00', '#7C4DFF', 
+                '#E040FB', '#FF4081', '#1DE9B6', '#FFC400', '#651FFF'
+            ];
+
+            categoriesSorted.forEach((cat, idx) => {
+                const amount = categoryTotals[cat];
+                const pct = totalExpense > 0 ? ((amount / totalExpense) * 100).toFixed(1) : 0;
+                const color = chartColors[idx % chartColors.length];
+
+                const row = document.createElement('div');
+                row.className = "space-y-1";
+                row.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${color}"></span>
+                            <span class="font-medium text-white">${cat}</span>
+                        </div>
+                        <div class="text-textSecondary">
+                            <span class="font-semibold text-white mr-1.5">${formatCurrency(amount)}</span>
+                            <span>(${pct}%)</span>
+                        </div>
+                    </div>
+                    <div class="w-full h-1.5 bg-darkBg rounded-full overflow-hidden">
+                        <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${color}"></div>
+                    </div>
+                `;
+                breakdownList.appendChild(row);
+            });
+
+            // Render Chart.js Donut Chart
+            const chartLabels = categoriesSorted;
+            const chartData = categoriesSorted.map(c => categoryTotals[c]);
+            const chartBgColors = categoriesSorted.map((_, idx) => chartColors[idx % chartColors.length]);
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            const ctx = chartCanvas.getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: chartBgColors,
+                        borderWidth: 2,
+                        borderColor: '#1E1E1E'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: $${context.raw.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        // Change Month Controls
+        function shiftMonth(delta) {
+            const input = document.getElementById('analytics-month');
+            const [y, m] = input.value.split('-').map(Number);
+            const date = new Date(y, m - 1 + delta, 1);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            input.value = `${year}-${month}`;
+            renderAnalytics();
+        }
+
+        // --- ACCOUNT MANAGEMENT ---
+        function renderManageAccounts() {
+            const container = document.getElementById('manage-accounts-list');
+            container.innerHTML = '';
+
+            appData.accounts.forEach(acc => {
+                const item = document.createElement('div');
+                item.className = "bg-darkBg border border-cardBorder p-3 rounded-xl flex items-center justify-between gap-3";
+                item.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs" style="background-color: ${acc.color}20; color: ${acc.color}">
+                            <i class="fas ${acc.icon}"></i>
+                        </div>
+                        <span class="text-xs font-semibold">${acc.name}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-textSecondary">$</span>
+                        <input type="number" value="${acc.balance}" onchange="updateAccountBalance('${acc.id}', this.value)" class="w-28 bg-cardBg border border-cardBorder rounded-lg px-2 py-1 text-xs text-right font-bold focus:outline-none focus:border-neonGreen">
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateAccountBalance(id, newBalance) {
+            const val = parseFloat(newBalance);
+            if (isNaN(val)) return;
+
+            const acc = appData.accounts.find(a => a.id === id);
+            if (acc) {
+                acc.balance = val;
+                saveAppData();
+                renderNetWorthAndAccounts();
+                populateAccountDropdowns();
+                showToast(`已更新 ${acc.name} 的餘額`);
+            }
+        }
+
+        // --- SUBCATEGORY MANAGEMENT ---
+        function renderSubcategoryManagement() {
+            const mainSelect = document.getElementById('submgt-main-cat');
+            const currentMain = mainSelect.value;
+            mainSelect.innerHTML = '';
+
+            // Combine Expense and Income category names
+            const expenseCats = Object.keys(appData.categories.Expense || {});
+            
+            expenseCats.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = `[支出] ${cat}`;
+                mainSelect.appendChild(opt);
+            });
+
+            if (currentMain && expenseCats.includes(currentMain)) {
+                mainSelect.value = currentMain;
+            } else if (expenseCats.length > 0) {
+                mainSelect.value = expenseCats[0];
+            }
+
+            renderSubcategoryBadges();
+        }
+
+        function renderSubcategoryBadges() {
+            const mainCat = document.getElementById('submgt-main-cat').value;
+            const container = document.getElementById('submgt-tags-container');
+            container.innerHTML = '';
+
+            if (!mainCat) return;
+
+            const subs = (appData.categories.Expense && appData.categories.Expense[mainCat]) || [];
+
+            if (subs.length === 0) {
+                container.innerHTML = `<span class="text-xs text-textSecondary italic">尚無子分類</span>`;
+                return;
+            }
+
+            subs.forEach(sub => {
+                const badge = document.createElement('div');
+                badge.className = "bg-cardBg border border-cardBorder text-xs text-white px-2.5 py-1 rounded-lg flex items-center gap-1.5";
+                badge.innerHTML = `
+                    <span>${sub}</span>
+                    <button onclick="removeSubcategory('${mainCat}', '${sub}')" class="text-textSecondary hover:text-coralRed">
+                        <i class="fas fa-times text-[10px]"></i>
+                    </button>
+                `;
+                container.appendChild(badge);
+            });
+        }
+
+        function handleAddSubcategory() {
+            const mainCat = document.getElementById('submgt-main-cat').value;
+            const input = document.getElementById('submgt-new-sub');
+            const newSub = input.value.trim();
+
+            if (!newSub) return;
+
+            if (!appData.categories.Expense[mainCat]) {
+                appData.categories.Expense[mainCat] = [];
+            }
+
+            if (appData.categories.Expense[mainCat].includes(newSub)) {
+                showToast("該子分類名稱已存在", true);
+                return;
+            }
+
+            appData.categories.Expense[mainCat].push(newSub);
+            saveAppData();
+            input.value = '';
+            renderSubcategoryBadges();
+            populateCategoryDropdowns();
+            showToast("新增子分類成功！");
+        }
+
+        function removeSubcategory(mainCat, subName) {
+            if (!appData.categories.Expense[mainCat]) return;
+
+            appData.categories.Expense[mainCat] = appData.categories.Expense[mainCat].filter(s => s !== subName);
+            saveAppData();
+            renderSubcategoryBadges();
+            populateCategoryDropdowns();
+            showToast("已刪除子分類");
+        }
+
+        // --- BACKUP & RESTORE ---
+        function exportJSONBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `minimal_finance_backup_${getTodayString()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast("JSON 備份檔案已匯出！");
+        }
+
+        function importJSONBackup(e) {
+            const fileReader = new FileReader();
+            fileReader.onload = function (event) {
+                try {
+                    const parsed = JSON.parse(event.target.result);
+                    if (parsed && parsed.accounts && parsed.transactions) {
+                        appData = parsed;
+                        saveAppData();
+                        renderAll();
+                        showToast("成功從 JSON 恢復資料！");
+                    } else {
+                        showToast("JSON 格式不符！", true);
+                    }
+                } catch (err) {
+                    showToast("讀取 JSON 檔案失敗", true);
+                }
+            };
+            if (e.target.files[0]) {
+                fileReader.readAsText(e.target.files[0]);
+            }
+        }
+
+        function clearAllData() {
+            if (confirm("確定要清除所有資料並恢復預設設定嗎？此動作無法復原！")) {
+                localStorage.removeItem(STORAGE_KEY);
+                initDefaultData();
+                renderAll();
+                showToast("已清除所有資料並重置");
+            }
+        }
+
+        // --- NAVIGATION TABS ---
+        function switchTab(tab) {
+            const overviewEl = document.getElementById('tab-overview');
+            const analyticsEl = document.getElementById('tab-analytics');
+            const navBtnOverview = document.getElementById('nav-btn-overview');
+            const navBtnAnalytics = document.getElementById('nav-btn-analytics');
+
+            if (tab === 'overview') {
+                overviewEl.classList.remove('hidden');
+                analyticsEl.classList.add('hidden');
+                navBtnOverview.className = "flex flex-col items-center justify-center gap-1 text-neonGreen";
+                navBtnAnalytics.className = "flex flex-col items-center justify-center gap-1 text-textSecondary hover:text-white";
+            } else {
+                overviewEl.classList.add('hidden');
+                analyticsEl.classList.remove('hidden');
+                navBtnOverview.className = "flex flex-col items-center justify-center gap-1 text-textSecondary hover:text-white";
+                navBtnAnalytics.className = "flex flex-col items-center justify-center gap-1 text-neonGreen";
+                renderAnalytics(); // Refresh chart on tab view
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            // Form Submit
+            document.getElementById('transaction-form').addEventListener('submit', handleAddTransaction);
+
+            // Category Change
+            document.getElementById('tx-main-category').addEventListener('change', (e) => {
+                updateSubCategoryDropdown(e.target.value);
+            });
+
+            // Toggle Account Balance list dropdown
+            document.getElementById('toggle-accounts-btn').addEventListener('click', () => {
+                const container = document.getElementById('accounts-list-container');
+                const icon = document.getElementById('toggle-accounts-icon');
+                const isHidden = container.classList.contains('hidden');
+
+                if (isHidden) {
+                    container.classList.remove('hidden');
+                    icon.classList.add('rotate-180');
+                    document.querySelector('#toggle-accounts-btn span').textContent = '收合帳戶明細';
+                } else {
+                    container.classList.add('hidden');
+                    icon.classList.remove('rotate-180');
+                    document.querySelector('#toggle-accounts-btn span').textContent = '展開帳戶明細';
+                }
+            });
+
+            // Search Transactions Filter
+            document.getElementById('search-tx').addEventListener('input', renderRecentTransactions);
+
+            // Month Picker Change
+            document.getElementById('analytics-month').addEventListener('change', renderAnalytics);
+            document.getElementById('prev-month-btn').addEventListener('click', () => shiftMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => shiftMonth(1));
+
+            // Subcategory Management Main Category Selector
+            document.getElementById('submgt-main-cat').addEventListener('change', renderSubcategoryBadges);
+            document.getElementById('btn-add-subcategory').addEventListener('click', handleAddSubcategory);
+
+            // Export & Import Backup
+            document.getElementById('btn-export-json').addEventListener('click', exportJSONBackup);
+            document.getElementById('btn-trigger-import').addEventListener('click', () => {
+                document.getElementById('import-json-file').click();
+            });
+            document.getElementById('import-json-file').addEventListener('change', importJSONBackup);
+            document.getElementById('btn-clear-all').addEventListener('click', clearAllData);
+        }
+    </script>
+</body>
+</html>
